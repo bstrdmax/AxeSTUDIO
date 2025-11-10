@@ -74,7 +74,7 @@ const Studio: React.FC<StudioProps> = ({ mode, onExitStudio, addRecording, recor
   const countdownIntervalRef = useRef<number | null>(null);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { sources, error, addCamera, addScreenShare, removeSource, updateCamera, toggleMute } = useSources();
+  const { sources, error, addCamera, addScreenShare, removeSource, updateCamera, toggleMute, toggleBackgroundBlur } = useSources();
   const [composedStream, setComposedStream] = useState<MediaStream | null>(null);
   const { isRecording, recordedUrl, startRecording, stopRecording, setRecordedUrl } = useRecording(composedStream);
   const prevRecordedUrlRef = useRef<string | null>(null);
@@ -397,6 +397,7 @@ const Studio: React.FC<StudioProps> = ({ mode, onExitStudio, addRecording, recor
                     toggleStagePresence={toggleStagePresence}
                     removeSource={removeSource}
                     toggleMute={toggleMute}
+                    toggleBackgroundBlur={toggleBackgroundBlur}
                 />
             </div>
           </div>
