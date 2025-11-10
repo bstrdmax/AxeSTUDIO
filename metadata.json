@@ -1,0 +1,9 @@
+{
+  "name": "AxeSTUDIO",
+  "description": "A modern streaming application with overlays and settings, inspired by StreamYard. Control your brand, banners, and media assets in a professional studio environment.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "display-capture"
+  ]
+}
