@@ -1,0 +1,27 @@
+[build]
+  # This tells Netlify your site is pre-built and doesn't need a build command.
+  publish = "."
+
+[[redirects]]
+  # This rule ensures all navigation is handled by your index.html.
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  # Apply these headers to all pages on your site.
+  for = "/*"
+  [headers.values]
+    # Explicitly allow camera, microphone, and screen sharing for your site's origin.
+    # This is a critical security best practice for your app's features.
+    Permissions-Policy = "camera=(self), microphone=(self), display-capture=(self)"
+    
+    # Prevent the site from being embedded in iframes to avoid clickjacking attacks.
+    X-Frame-Options = "DENY"
+    
+    # Prevent browsers from incorrectly guessing content types, which can be a security risk.
+    X-Content-Type-Options = "nosniff"
+    
+    # A sensible default that improves user privacy by controlling how much
+    # referrer information is sent.
+    Referrer-Policy = "strict-origin-when-cross-origin"
