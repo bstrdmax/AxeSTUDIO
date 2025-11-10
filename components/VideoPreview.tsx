@@ -3,6 +3,8 @@ import React, { useEffect, useRef, useCallback } from 'react';
 import { OverlaySettings, LayoutMode, Source, OverlayPlacement } from '../types';
 import { StudioMode } from '../App';
 
+declare var SelfieSegmentation: any;
+
 interface VideoPreviewProps {
     canvasRef: React.RefObject<HTMLCanvasElement>;
     settings: OverlaySettings;
@@ -111,6 +113,12 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
     const overlayVideoRef = useRef<HTMLVideoElement>(document.createElement('video'));
     const overlayImageRef = useRef<HTMLImageElement>(document.createElement('img'));
 
+    // --- START: ADDED FOR BACKGROUND BLUR ---
+    // A ref to hold the MediaPipe SelfieSegmentation instance.
+    const segmentationRef = useRef<any | null>(null);
+    // A map to store the processed, blurred canvas elements for each source.
+    const blurredSourcesRef = useRef<Map<string, HTMLCanvasElement>>(new Map());
+
     // Effect for managing hidden <video> elements for each source
     useEffect(() => {
         const container = hiddenVideosContainerRef.current;
@@ -173,6 +181,77 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
         }
     }, [settings.logo.url, settings.overlay.url, settings.overlay.type]);
 
+    // Effect to initialize the MediaPipe segmentation model.
+    useEffect(() => {
+        // This effect runs only once on mount to set up the segmentation pipeline.
+        const segmentation = new SelfieSegmentation({
+            locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/${file}`
+        });
+        segmentation.setOptions({ modelSelection: 1 }); // 1 for landscape, 0 for portrait general
+
+        // The onResults callback is the core of the blur effect.
+        segmentation.onResults((results: any) => {
+            const sourceId = (results.image as HTMLVideoElement).dataset.sourceId;
+            if (!sourceId) return;
+            
+            // Get or create a dedicated canvas for this blurred source.
+            let blurredCanvas = blurredSourcesRef.current.get(sourceId);
+            if (!blurredCanvas) {
+                blurredCanvas = document.createElement('canvas');
+                blurredSourcesRef.current.set(sourceId, blurredCanvas);
+            }
+            const blurCtx = blurredCanvas.getContext('2d');
+            if (!blurCtx) return;
+
+            // Set canvas dimensions to match the video.
+            blurredCanvas.width = results.image.width;
+            blurredCanvas.height = results.image.height;
+
+            // 1. Draw the original video.
+            blurCtx.drawImage(results.image, 0, 0, blurredCanvas.width, blurredCanvas.height);
+            // 2. Apply a heavy blur filter to the entire canvas (the background).
+            blurCtx.filter = 'blur(10px)';
+            blurCtx.drawImage(blurredCanvas, 0, 0, blurredCanvas.width, blurredCanvas.height);
+            blurCtx.filter = 'none';
+
+            // 3. Use globalCompositeOperation to mask out the person.
+            blurCtx.globalCompositeOperation = 'destination-in';
+            // 4. Draw the segmentation mask (person is white, background is black).
+            blurCtx.drawImage(results.segmentationMask, 0, 0, blurredCanvas.width, blurredCanvas.height);
+
+            // 5. Use globalCompositeOperation to draw the original, non-blurred person over the top.
+            blurCtx.globalCompositeOperation = 'source-over';
+            // 6. Draw the original video again, which will only show where the mask was.
+            blurCtx.drawImage(results.image, 0, 0, blurredCanvas.width, blurredCanvas.height);
+        });
+
+        segmentationRef.current = segmentation;
+
+        return () => {
+            segmentation.close();
+        };
+    }, []);
+
+    // Effect to continuously send video frames to MediaPipe for processing.
+    useEffect(() => {
+        let animationFrameId: number;
+        const processFrames = async () => {
+            const segmentation = segmentationRef.current;
+            if (segmentation) {
+                for (const source of sources) {
+                    const video = videoElementsRef.current[source.id];
+                    // Only process camera sources that have blur enabled and are ready.
+                    if (source.type === 'camera' && source.backgroundBlur && video && video.readyState >= 3) {
+                       await segmentation.send({ image: video });
+                    }
+                }
+            }
+            animationFrameId = requestAnimationFrame(processFrames);
+        };
+        processFrames();
+        return () => cancelAnimationFrame(animationFrameId);
+    }, [sources]);
+
 
     const renderCanvas = useCallback(() => {
         const canvas = canvasRef.current;
@@ -186,6 +265,9 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
         ctx.fillRect(0, 0, cw, ch);
 
         const getDrawableSource = (source: Source): CanvasImageSource | null => {
+            if (source.backgroundBlur && blurredSourcesRef.current.has(source.id)) {
+                return blurredSourcesRef.current.get(source.id)!;
+            }
             const video = videoElementsRef.current[source.id];
             if (!video || video.readyState < 3) return null;
             return video;
