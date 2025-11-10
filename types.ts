@@ -108,6 +108,7 @@ export interface Source {
   type: SourceType;    // The type of the source ('camera' or 'screen').
   stream: MediaStream; // the actual WebRTC MediaStream from the device.
   isMuted: boolean;    // The current mute state of the source's audio track.
+  backgroundBlur: boolean; // State of the background blur effect for this source.
 }
 
 // Represents a saved preset of layout and overlay settings.
