@@ -13,6 +13,7 @@ interface SourcePreviewProps {
     toggleStagePresence: (sourceId: string) => void;
     removeSource: (sourceId: string) => void;
     toggleMute: (sourceId: string) => void;
+    toggleBackgroundBlur: (sourceId: string) => void;
 }
 
 const ControlButton: React.FC<{onClick: (e: React.MouseEvent) => void; children: React.ReactNode; isActive?: boolean; title?: string}> = ({onClick, children, isActive, title}) => (
@@ -44,7 +45,8 @@ const SourceCard: React.FC<{
     onToggleStage: () => void;
     onRemove: () => void;
     onToggleMute: () => void;
-}> = ({ source, isActive, onToggleStage, onRemove, onToggleMute }) => {
+    onToggleBackgroundBlur: () => void;
+}> = ({ source, isActive, onToggleStage, onRemove, onToggleMute, onToggleBackgroundBlur }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const hasAudio = source.stream.getAudioTracks().length > 0;
 
@@ -77,6 +79,15 @@ const SourceCard: React.FC<{
                             <div className="w-4 h-4">{source.isMuted ? ICONS.MIC_OFF : ICONS.MIC_ON}</div>
                         </button>
                     )}
+                    {source.type === 'camera' && (
+                         <button
+                            onClick={(e) => { e.stopPropagation(); onToggleBackgroundBlur(); }}
+                            title={source.backgroundBlur ? "Disable Blur" : "Enable Blur"}
+                            className={`w-7 h-7 flex items-center justify-center rounded-full transition-all ${source.backgroundBlur ? 'bg-purple-600 text-white' : 'bg-black/50 backdrop-blur-sm text-white'}`}
+                        >
+                            <div className="w-4 h-4">{ICONS.BLUR}</div>
+                        </button>
+                    )}
                 </div>
             </div>
             <button 
@@ -91,7 +102,7 @@ const SourceCard: React.FC<{
 }
 
 const SourcePreview: React.FC<SourcePreviewProps> = ({ 
-    sources, onAddSource, onOpenSettings, layout, setLayout, activeSources, toggleStagePresence, removeSource, toggleMute
+    sources, onAddSource, onOpenSettings, layout, setLayout, activeSources, toggleStagePresence, removeSource, toggleMute, toggleBackgroundBlur
 }) => {
 
     return (
@@ -104,6 +115,7 @@ const SourcePreview: React.FC<SourcePreviewProps> = ({
                     onToggleStage={() => toggleStagePresence(source.id)}
                     onRemove={() => removeSource(source.id)}
                     onToggleMute={() => toggleMute(source.id)}
+                    onToggleBackgroundBlur={() => toggleBackgroundBlur(source.id)}
                 />
             ))}
             <button onClick={onAddSource} className="flex-shrink-0 w-48 h-32 bg-[#1a102b] hover:bg-purple-900/60 rounded-lg flex flex-col items-center justify-center text-gray-400 transition-colors">
