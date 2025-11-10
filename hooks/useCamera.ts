@@ -54,6 +54,20 @@ export const useSources = () => {
     }, []);
 
     /**
+     * Toggles the background blur effect for a camera source.
+     */
+    const toggleBackgroundBlur = useCallback((sourceId: string) => {
+        setSources(prevSources =>
+            prevSources.map(source => {
+                if (source.id === sourceId && source.type === 'camera') {
+                    return { ...source, backgroundBlur: !source.backgroundBlur };
+                }
+                return source;
+            })
+        );
+    }, []);
+
+    /**
      * Adds a camera source using specified device IDs.
      * Prompts the user for permission if not already granted.
      */
@@ -80,6 +94,7 @@ export const useSources = () => {
                 type: 'camera',
                 stream,
                 isMuted: false, // Cameras are unmuted by default.
+                backgroundBlur: false, // Initialize with blur off.
             };
 
             setSources(prev => [...prev, newSource]);
@@ -154,6 +169,7 @@ export const useSources = () => {
                 type: 'screen',
                 stream,
                 isMuted: false, // Screen share audio is unmuted by default.
+                backgroundBlur: false, // Blur does not apply to screen share.
             };
             
             // Listen for when the user stops sharing via the browser's native UI.
@@ -191,5 +207,5 @@ export const useSources = () => {
     }, []);
 
     // Expose the state and control functions to the rest of the app.
-    return { sources, error, addCamera, addScreenShare, removeSource, updateCamera, toggleMute };
+    return { sources, error, addCamera, addScreenShare, removeSource, updateCamera, toggleMute, toggleBackgroundBlur };
 };
