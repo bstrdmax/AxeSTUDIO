@@ -1,5 +1,5 @@
 // components/Studio.tsx
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useReducer } from 'react';
 import VideoPreview from './VideoPreview';
 import SourcePreview from './SourcePreview';
 import StudioControls from './StudioControls';
@@ -11,28 +11,48 @@ import DownloadModal from './DownloadModal';
 import AddSourceModal from './AddSourceModal';
 import CameraSettingsModal from './CameraSettingsModal';
 
-interface StudioProps {
-  mode: StudioMode;
-  onExitStudio: () => void;
-  addRecording: (recording: Recording) => void;
-  recordings: Recording[];
-  deleteRecording: (id: string) => void;
-  renameRecording: (id: string, newName: string) => void;
-  destinations: Destination[];
-  removeDestination: (id: string) => void;
-}
+// REWORK: Define actions for the overlay settings reducer
+type OverlayAction = 
+  | { type: 'SET_ALL'; payload: OverlaySettings }
+  | { type: 'UPDATE_LOGO'; payload: Partial<OverlaySettings['logo']> }
+  | { type: 'UPDATE_BANNER'; payload: Partial<OverlaySettings['banner']> }
+  | { type: 'UPDATE_LOWER_THIRD'; payload: Partial<OverlaySettings['lowerThird']> }
+  | { type: 'UPDATE_OVERLAY'; payload: Partial<OverlaySettings['overlay']> }
+  | { type: 'UPDATE_FILTERS'; payload: Partial<OverlaySettings['filters']> }
+  | { type: 'UPDATE_COUNTDOWN'; payload: Partial<OverlaySettings['countdown']> }
+  | { type: 'UPDATE_TICKER'; payload: Partial<OverlaySettings['ticker']> }
+  | { type: 'UPDATE_BULLET_LISTS'; payload: Partial<OverlaySettings['bulletLists']> }
+  | { type: 'UPDATE_TEXT_OVERLAY'; payload: Partial<OverlaySettings['textOverlay']> };
 
-const Studio: React.FC<StudioProps> = ({ mode, onExitStudio, addRecording, recordings, deleteRecording, renameRecording, destinations, removeDestination }) => {
-  const [isLive, setIsLive] = useState(false);
-  const [layout, setLayout] = useState<LayoutMode>('solo');
-  const [activeSources, setActiveSources] = useState<string[]>([]);
-  const [presets, setPresets] = useState<Preset[]>([]);
-  const [isAddSourceModalOpen, setIsAddSourceModalOpen] = useState(false);
-  const [isCameraSettingsModalOpen, setIsCameraSettingsModalOpen] = useState(false);
-  const [timer, setTimer] = useState(0);
-  const timerIntervalRef = useRef<number | null>(null);
-  
-  const [overlaySettings, setOverlaySettings] = useState<OverlaySettings>({
+// REWORK: Reducer function to manage overlay settings state
+const overlayReducer = (state: OverlaySettings, action: OverlayAction): OverlaySettings => {
+  switch (action.type) {
+    case 'SET_ALL':
+      return action.payload;
+    case 'UPDATE_LOGO':
+      return { ...state, logo: { ...state.logo, ...action.payload } };
+    case 'UPDATE_BANNER':
+      return { ...state, banner: { ...state.banner, ...action.payload } };
+    case 'UPDATE_LOWER_THIRD':
+      return { ...state, lowerThird: { ...state.lowerThird, ...action.payload } };
+    case 'UPDATE_OVERLAY':
+      return { ...state, overlay: { ...state.overlay, ...action.payload } };
+    case 'UPDATE_FILTERS':
+        return { ...state, filters: { ...state.filters, ...action.payload } };
+    case 'UPDATE_COUNTDOWN':
+        return { ...state, countdown: { ...state.countdown, ...action.payload } };
+    case 'UPDATE_TICKER':
+        return { ...state, ticker: { ...state.ticker, ...action.payload } };
+    case 'UPDATE_BULLET_LISTS':
+        return { ...state, bulletLists: { ...state.bulletLists, ...action.payload } };
+    case 'UPDATE_TEXT_OVERLAY':
+        return { ...state, textOverlay: { ...state.textOverlay, ...action.payload } };
+    default:
+      return state;
+  }
+};
+
+const initialOverlaySettings: OverlaySettings = {
     logo: { show: true, placement: 'top-right', url: null },
     banner: { 
       show: false, 
@@ -68,8 +88,32 @@ const Studio: React.FC<StudioProps> = ({ mode, onExitStudio, addRecording, recor
       backgroundColor: '#2a0e44',
       backgroundOpacity: 0.8,
     },
-  });
+};
 
+interface StudioProps {
+  mode: StudioMode;
+  onExitStudio: () => void;
+  addRecording: (recording: Recording) => void;
+  recordings: Recording[];
+  deleteRecording: (id: string) => void;
+  renameRecording: (id: string, newName: string) => void;
+  destinations: Destination[];
+  removeDestination: (id: string) => void;
+}
+
+const Studio: React.FC<StudioProps> = ({ mode, onExitStudio, addRecording, recordings, deleteRecording, renameRecording, destinations, removeDestination }) => {
+  const [isLive, setIsLive] = useState(false);
+  const [layout, setLayout] = useState<LayoutMode>('solo');
+  const [activeSources, setActiveSources] = useState<string[]>([]);
+  const [presets, setPresets] = useState<Preset[]>([]);
+  const [isAddSourceModalOpen, setIsAddSourceModalOpen] = useState(false);
+  const [isCameraSettingsModalOpen, setIsCameraSettingsModalOpen] = useState(false);
+  const [timer, setTimer] = useState(0);
+  const timerIntervalRef = useRef<number | null>(null);
+  
+  // REWORK: Use useReducer for overlay settings
+  const [overlaySettings, dispatchOverlay] = useReducer(overlayReducer, initialOverlaySettings);
+  
   const [countdownTime, setCountdownTime] = useState(overlaySettings.countdown.duration * 60);
   const countdownIntervalRef = useRef<number | null>(null);
   
@@ -79,12 +123,11 @@ const Studio: React.FC<StudioProps> = ({ mode, onExitStudio, addRecording, recor
   const { isRecording, recordedUrl, startRecording, stopRecording, setRecordedUrl } = useRecording(composedStream);
   const prevRecordedUrlRef = useRef<string | null>(null);
 
-  // --- START OF NEW ROBUST AUDIO PIPELINE ---
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const connectedAudioSourcesRef = useRef<Map<string, MediaStreamAudioSourceNode>>(new Map());
-  // --- END OF NEW ROBUST AUDIO PIPELINE ---
 
+  // FIX: Corrected dependency array for initialization effect.
   useEffect(() => {
     const init = async () => {
       if (sources.length === 0) {
@@ -95,12 +138,9 @@ const Studio: React.FC<StudioProps> = ({ mode, onExitStudio, addRecording, recor
       }
     };
     init();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [addCamera, sources.length]);
 
-  // Effect to add the recording to the library once it's available.
   useEffect(() => {
-    // Only trigger when recordedUrl goes from null to a value
     if (recordedUrl && !prevRecordedUrlRef.current) {
         const newRecording: Recording = {
             id: crypto.randomUUID(),
@@ -114,15 +154,10 @@ const Studio: React.FC<StudioProps> = ({ mode, onExitStudio, addRecording, recor
     prevRecordedUrlRef.current = recordedUrl;
   }, [recordedUrl, addRecording, timer]);
 
-  // **CORE FIX**: This useEffect now manages a persistent audio context,
-  // intelligently patching audio sources in and out of the mix without
-  // tearing down the entire audio graph on every change. This is far more
-  // stable and eliminates race conditions.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Initialize audio context and destination only once
     if (!audioContextRef.current) {
       audioContextRef.current = new AudioContext();
       audioDestinationRef.current = audioContextRef.current.createMediaStreamDestination();
@@ -131,7 +166,6 @@ const Studio: React.FC<StudioProps> = ({ mode, onExitStudio, addRecording, recor
     const destination = audioDestinationRef.current;
     const connectedNodes = connectedAudioSourcesRef.current;
 
-    // 1. Disconnect sources that are no longer active
     connectedNodes.forEach((node, sourceId) => {
       if (!activeSources.includes(sourceId)) {
         node.disconnect();
@@ -139,7 +173,6 @@ const Studio: React.FC<StudioProps> = ({ mode, onExitStudio, addRecording, recor
       }
     });
 
-    // 2. Connect new active sources with audio
     activeSources.forEach(sourceId => {
       if (!connectedNodes.has(sourceId)) {
         const source = sources.find(s => s.id === sourceId);
@@ -151,7 +184,6 @@ const Studio: React.FC<StudioProps> = ({ mode, onExitStudio, addRecording, recor
       }
     });
 
-    // 3. Create the final composed stream for recording/streaming
     const canvasStream = canvas.captureStream(30);
     const finalStream = new MediaStream([
         ...canvasStream.getVideoTracks(),
@@ -159,11 +191,6 @@ const Studio: React.FC<StudioProps> = ({ mode, onExitStudio, addRecording, recor
     ]);
     setComposedStream(finalStream);
 
-    // Muting is now handled by enabling/disabling the track on the original
-    // stream, so we don't need to disconnect/reconnect nodes here.
-    // The Web Audio API correctly handles disabled tracks as silence.
-
-    // Cleanup function for when the component unmounts
     return () => {
         finalStream.getTracks().forEach(t => t.stop());
     }
@@ -180,27 +207,19 @@ const Studio: React.FC<StudioProps> = ({ mode, onExitStudio, addRecording, recor
             clearInterval(timerIntervalRef.current);
             timerIntervalRef.current = null;
         }
-        if (!isLive && !isRecording) {
-            // Only reset the timer if a recording isn't being saved.
-            // When stopRecording is called, it takes a moment for the URL to be generated.
-            // We rely on the timer state to save the correct duration.
-            // The timer will be reset if a new session starts.
-            // A more robust solution might be to snapshot timer on stop. For now, this is okay.
-        }
     }
     return () => {
         if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     }
   }, [isLive, isRecording]);
   
-   // Effect to manage the countdown timer.
   useEffect(() => {
     if (overlaySettings.countdown.running && countdownTime > 0) {
       countdownIntervalRef.current = window.setInterval(() => {
         setCountdownTime(prev => prev - 1);
       }, 1000);
     } else if (countdownTime === 0 && overlaySettings.countdown.running) {
-        setOverlaySettings(prev => ({ ...prev, countdown: {...prev.countdown, running: false}}));
+        dispatchOverlay({ type: 'UPDATE_COUNTDOWN', payload: { running: false } });
     }
     
     return () => {
@@ -210,20 +229,17 @@ const Studio: React.FC<StudioProps> = ({ mode, onExitStudio, addRecording, recor
     };
   }, [overlaySettings.countdown.running, countdownTime]);
 
-  // Resets the countdown to its starting duration.
   const resetCountdown = () => {
       if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-      setOverlaySettings(prev => ({ ...prev, countdown: {...prev.countdown, running: false}}));
+      dispatchOverlay({ type: 'UPDATE_COUNTDOWN', payload: { running: false } });
       setCountdownTime(overlaySettings.countdown.duration * 60);
   };
   
-  // Toggles a source's visibility on the main stage.
   const toggleStagePresence = (sourceId: string) => {
     setActiveSources(prev => {
       if (prev.includes(sourceId)) {
         return prev.filter(id => id !== sourceId);
       }
-      // Limit to a maximum of 2 active sources.
       if (prev.length < 2) {
         return [...prev, sourceId];
       }
@@ -237,13 +253,11 @@ const Studio: React.FC<StudioProps> = ({ mode, onExitStudio, addRecording, recor
       } else {
           setIsLive(prev => !prev);
       }
-      // Reset timer if starting a new session from idle
       if (!isLive && !isRecording) setTimer(0);
   };
 
   const handleRecordAction = () => {
       isRecording ? stopRecording() : startRecording();
-      // Reset timer if starting a new session from idle
       if (!isLive && !isRecording) setTimer(0);
   };
 
@@ -260,7 +274,7 @@ const Studio: React.FC<StudioProps> = ({ mode, onExitStudio, addRecording, recor
   const applyPreset = (presetId: string) => {
     const preset = presets.find(p => p.id === presetId);
     if (preset) {
-      setOverlaySettings(preset.settings);
+      dispatchOverlay({ type: 'SET_ALL', payload: preset.settings });
       setLayout(preset.layout);
     }
   };
@@ -280,14 +294,10 @@ const Studio: React.FC<StudioProps> = ({ mode, onExitStudio, addRecording, recor
   const guestCount = useRef(0);
   const addGuestSource = useCallback(async () => {
     guestCount.current += 1;
-    // For simulation, we re-add the user's camera as a "guest"
-    // In a real app, this would be a WebRTC peer connection stream
     const guestSource = await addCamera();
     if (guestSource) {
-      // Manually override the name and type for the simulation
       guestSource.name = `Guest ${guestCount.current}`;
       guestSource.type = 'guest' as SourceType;
-      // You might need to update the source in the state if addCamera doesn't return the mutated object reference
     }
   }, [addCamera]);
   
@@ -405,7 +415,7 @@ const Studio: React.FC<StudioProps> = ({ mode, onExitStudio, addRecording, recor
       </div>
       <StudioControls 
         settings={overlaySettings} 
-        setSettings={setOverlaySettings}
+        setSettings={dispatchOverlay}
         destinations={destinations}
         removeDestination={removeDestination}
         presets={presets}
