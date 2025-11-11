@@ -14,6 +14,13 @@ export const useSources = () => {
     const [error, setError] = useState<string | null>(null);
     // A ref to keep track of the number of cameras added to generate unique names.
     const cameraCountRef = useRef(0);
+    // A ref to hold the latest sources for cleanup, preventing stale closures.
+    const sourcesRef = useRef<Source[]>([]);
+
+    // Keep the sourcesRef updated with the latest sources state.
+    useEffect(() => {
+        sourcesRef.current = sources;
+    }, [sources]);
 
     /**
      * Removes a source from the list and properly stops all its media tracks
@@ -189,21 +196,17 @@ export const useSources = () => {
         }
     }, [removeSource]);
 
-    // **THE CRITICAL FIX IS HERE**
-    // This cleanup effect ensures all media streams are stopped, but ONLY when the 
-    // component that uses this hook (i.e., the Studio) is completely unmounted.
-    // Previously, this had `[sources]` as a dependency, which caused it to run
-    // *every time a source was added or removed*, incorrectly stopping all existing
-    // streams and causing the "black screen" bug. By using an empty dependency
-    // array `[]`, we guarantee this only runs once on unmount.
+    // This cleanup effect ensures all media streams are stopped when the component
+    // that uses this hook (i.e., the Studio) is completely unmounted.
+    // By using a ref, we ensure the cleanup function has access to the *latest*
+    // list of sources, preventing resource leaks.
     useEffect(() => {
         return () => {
-            // This logic is now safe and runs only when leaving the studio.
-            sources.forEach(source => {
+            // This logic now correctly cleans up all sources on unmount.
+            sourcesRef.current.forEach(source => {
                 source.stream.getTracks().forEach(track => track.stop());
             });
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Expose the state and control functions to the rest of the app.
