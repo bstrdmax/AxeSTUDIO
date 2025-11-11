@@ -36,7 +36,7 @@ interface NavItemProps {
   onClick: () => void;
 }
 
-const NavItem: React.FC<NavItemProps> = ({ icon, label, active, onClick }) => (
+const NavItem: React.FC<NavItemProps> = React.memo(({ icon, label, active, onClick }) => (
   <button
     onClick={onClick}
     className={`flex items-center space-x-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors duration-200 w-full text-left ${
@@ -48,6 +48,6 @@ const NavItem: React.FC<NavItemProps> = ({ icon, label, active, onClick }) => (
     <span className="w-5 h-5">{icon}</span>
     <span>{label}</span>
   </button>
-);
+));
 
-export default Sidebar;
+export default React.memo(Sidebar);
