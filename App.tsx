@@ -23,6 +23,11 @@ const App: React.FC = () => {
   };
 
   const deleteRecording = (recordingId: string) => {
+    const recordingToDelete = recordings.find(rec => rec.id === recordingId);
+    if (recordingToDelete) {
+      // Revoke the Blob URL to prevent memory leaks
+      URL.revokeObjectURL(recordingToDelete.url);
+    }
     setRecordings(prev => prev.filter(rec => rec.id !== recordingId));
   };
 
