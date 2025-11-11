@@ -2,9 +2,21 @@ import React, { useState } from 'react';
 import { ICONS } from '../constants';
 import { OverlaySettings, OverlayPlacement, Destination, Preset, BulletList, Recording } from '../types';
 
+type OverlayAction = 
+  | { type: 'SET_ALL'; payload: OverlaySettings }
+  | { type: 'UPDATE_LOGO'; payload: Partial<OverlaySettings['logo']> }
+  | { type: 'UPDATE_BANNER'; payload: Partial<OverlaySettings['banner']> }
+  | { type: 'UPDATE_LOWER_THIRD'; payload: Partial<OverlaySettings['lowerThird']> }
+  | { type: 'UPDATE_OVERLAY'; payload: Partial<OverlaySettings['overlay']> }
+  | { type: 'UPDATE_FILTERS'; payload: Partial<OverlaySettings['filters']> }
+  | { type: 'UPDATE_COUNTDOWN'; payload: Partial<OverlaySettings['countdown']> }
+  | { type: 'UPDATE_TICKER'; payload: Partial<OverlaySettings['ticker']> }
+  | { type: 'UPDATE_BULLET_LISTS'; payload: Partial<OverlaySettings['bulletLists']> }
+  | { type: 'UPDATE_TEXT_OVERLAY'; payload: Partial<OverlaySettings['textOverlay']> };
+
 interface StudioControlsProps {
     settings: OverlaySettings;
-    setSettings: React.Dispatch<React.SetStateAction<OverlaySettings>>;
+    setSettings: React.Dispatch<OverlayAction>;
     destinations: Destination[];
     removeDestination: (id: string) => void;
     presets: Preset[];
@@ -77,7 +89,7 @@ const StyleControls: React.FC<{
 
 const StudioControls: React.FC<StudioControlsProps> = ({ 
     settings, 
-    setSettings, 
+    setSettings: dispatch, // Rename for clarity
     destinations, 
     removeDestination,
     presets, 
@@ -103,26 +115,19 @@ const StudioControls: React.FC<StudioControlsProps> = ({
         { name: 'Presets', icon: ICONS.PRESETS },
         { name: 'Library', icon: ICONS.LIBRARY },
     ];
-
-    const updateSetting = <K extends keyof OverlaySettings>(key: K, value: Partial<OverlaySettings[K]>) => {
-        setSettings(prev => ({
-            ...prev,
-            [key]: { ...prev[key], ...value }
-        }));
-    };
     
     const renderContent = () => {
         switch(activeTab) {
             case 'Brand':
-                return <BrandControls settings={settings} updateSetting={updateSetting} />;
+                return <BrandControls settings={settings} dispatch={dispatch} />;
             case 'Banners':
-                return <BannerControls settings={settings} updateSetting={updateSetting} />;
+                return <BannerControls settings={settings} dispatch={dispatch} />;
             case 'Lower Thirds':
-                return <LowerThirdControls settings={settings} updateSetting={updateSetting} />;
+                return <LowerThirdControls settings={settings} dispatch={dispatch} />;
             case 'Text':
-                return <TextControls settings={settings} updateSetting={updateSetting} />;
+                return <TextControls settings={settings} dispatch={dispatch} />;
             case 'Widgets':
-                return <WidgetsControls settings={settings} updateSetting={updateSetting} resetCountdown={resetCountdown} />;
+                return <WidgetsControls settings={settings} dispatch={dispatch} resetCountdown={resetCountdown} />;
             case 'Destinations':
                 return <DestinationsControls destinations={destinations} removeDestination={removeDestination} />;
             case 'Presets':
@@ -158,7 +163,7 @@ const StudioControls: React.FC<StudioControlsProps> = ({
     );
 };
 
-const GuestsPanel: React.FC<{addGuestSource: () => void}> = ({ addGuestSource }) => {
+const GuestsPanel: React.FC<{addGuestSource: () => void}> = React.memo(({ addGuestSource }) => {
     const [copied, setCopied] = useState(false);
     const inviteLink = "https://studio.example.com/join/aB1c2D3e";
 
@@ -188,16 +193,13 @@ const GuestsPanel: React.FC<{addGuestSource: () => void}> = ({ addGuestSource })
             </div>
         </div>
     );
-}
+});
 
-// Formats seconds into HH:MM:SS
 const formatDuration = (seconds: number) => {
     const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
     const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
     const s = (seconds % 60).toString().padStart(2, '0');
-    if (h !== '00') {
-      return `${h}:${m}:${s}`;
-    }
+    if (h !== '00') return `${h}:${m}:${s}`;
     return `${m}:${s}`;
 };
 
@@ -205,7 +207,7 @@ const LibraryControls: React.FC<{
     recordings: Recording[];
     deleteRecording: (id: string) => void;
     renameRecording: (id: string, newName: string) => void;
-}> = ({ recordings, deleteRecording, renameRecording }) => {
+}> = React.memo(({ recordings, deleteRecording, renameRecording }) => {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [newName, setNewName] = useState('');
 
@@ -273,26 +275,21 @@ const LibraryControls: React.FC<{
             )}
         </div>
     );
-};
+});
 
 const FreestyleTextControls: React.FC<{
     settings: OverlaySettings;
-    updateSetting: <K extends keyof OverlaySettings>(key: K, value: Partial<OverlaySettings[K]>) => void;
-}> = ({ settings, updateSetting }) => {
-    const { textOverlay } = settings;
-    const { text, font, size, color, isBold, isItalic, placement, backgroundColor, backgroundOpacity, show } = textOverlay;
-
-    const handleUpdate = (value: Partial<OverlaySettings['textOverlay']>) => {
-        updateSetting('textOverlay', value);
-    };
-
+    dispatch: React.Dispatch<OverlayAction>;
+}> = ({ settings, dispatch }) => {
+    const { text, font, size, color, isBold, isItalic, placement, backgroundColor, backgroundOpacity, show } = settings.textOverlay;
+    
     return (
         <div className="space-y-4">
             <div>
                 <label className="text-xs text-gray-400">Text Content</label>
                 <textarea
                     value={text}
-                    onChange={(e) => handleUpdate({ text: e.target.value })}
+                    onChange={(e) => dispatch({ type: 'UPDATE_TEXT_OVERLAY', payload: { text: e.target.value } })}
                     rows={4}
                     className="w-full mt-1 bg-purple-800/60 p-2 rounded-md text-sm placeholder-gray-400"
                     placeholder="Enter text to display..."
@@ -303,19 +300,19 @@ const FreestyleTextControls: React.FC<{
                 <h4 className="text-xs font-semibold text-gray-300">Style</h4>
                 <div>
                     <label className="text-xs text-gray-400">Font</label>
-                    <select value={font} onChange={(e) => handleUpdate({ font: e.target.value })} className="w-full mt-1 bg-purple-800/60 p-2 rounded-md text-sm">
+                    <select value={font} onChange={(e) => dispatch({ type: 'UPDATE_TEXT_OVERLAY', payload: { font: e.target.value } })} className="w-full mt-1 bg-purple-800/60 p-2 rounded-md text-sm">
                         {FONT_OPTIONS.map(f => <option key={f} value={f}>{f}</option>)}
                     </select>
                 </div>
                 <div>
                     <label className="text-xs text-gray-400 flex justify-between">Size <span>{size}%</span></label>
-                    <input type="range" min="2" max="15" value={size} onChange={(e) => handleUpdate({ size: parseFloat(e.target.value) })} className="w-full h-2 bg-purple-800/60 rounded-lg appearance-none cursor-pointer accent-purple-500"/>
+                    <input type="range" min="2" max="15" value={size} onChange={(e) => dispatch({ type: 'UPDATE_TEXT_OVERLAY', payload: { size: parseFloat(e.target.value) } })} className="w-full h-2 bg-purple-800/60 rounded-lg appearance-none cursor-pointer accent-purple-500"/>
                 </div>
                 <div className="flex items-center space-x-2">
-                    <button onClick={() => handleUpdate({ isBold: !isBold })} className={`px-3 py-1 text-sm rounded ${isBold ? 'bg-purple-600 text-white' : 'bg-purple-800'}`}><b>B</b></button>
-                    <button onClick={() => handleUpdate({ isItalic: !isItalic })} className={`px-3 py-1 text-sm rounded ${isItalic ? 'bg-purple-600 text-white' : 'bg-purple-800'}`}><i>I</i></button>
+                    <button onClick={() => dispatch({ type: 'UPDATE_TEXT_OVERLAY', payload: { isBold: !isBold } })} className={`px-3 py-1 text-sm rounded ${isBold ? 'bg-purple-600 text-white' : 'bg-purple-800'}`}><b>B</b></button>
+                    <button onClick={() => dispatch({ type: 'UPDATE_TEXT_OVERLAY', payload: { isItalic: !isItalic } })} className={`px-3 py-1 text-sm rounded ${isItalic ? 'bg-purple-600 text-white' : 'bg-purple-800'}`}><i>I</i></button>
                     <div className="relative">
-                        <input type="color" value={color} onChange={(e) => handleUpdate({ color: e.target.value })} className="w-8 h-8 opacity-0 absolute cursor-pointer"/>
+                        <input type="color" value={color} onChange={(e) => dispatch({ type: 'UPDATE_TEXT_OVERLAY', payload: { color: e.target.value } })} className="w-8 h-8 opacity-0 absolute cursor-pointer"/>
                         <div className="w-8 h-8 rounded border-2 border-purple-700" style={{ backgroundColor: color }}></div>
                     </div>
                     <span className="text-xs text-gray-400">Text Color</span>
@@ -326,14 +323,14 @@ const FreestyleTextControls: React.FC<{
                 <h4 className="text-xs font-semibold text-gray-300">Background</h4>
                 <div>
                     <label className="text-xs text-gray-400 flex justify-between">Opacity <span>{Math.round(backgroundOpacity * 100)}%</span></label>
-                    <input type="range" min="0" max="1" step="0.05" value={backgroundOpacity} onChange={(e) => handleUpdate({ backgroundOpacity: parseFloat(e.target.value) })} className="w-full h-2 bg-purple-800/60 rounded-lg appearance-none cursor-pointer accent-purple-500"/>
+                    <input type="range" min="0" max="1" step="0.05" value={backgroundOpacity} onChange={(e) => dispatch({ type: 'UPDATE_TEXT_OVERLAY', payload: { backgroundOpacity: parseFloat(e.target.value) } })} className="w-full h-2 bg-purple-800/60 rounded-lg appearance-none cursor-pointer accent-purple-500"/>
                 </div>
                  <div className="flex items-center space-x-2">
                     <div className="relative">
-                        <input type="color" value={backgroundColor} onChange={(e) => handleUpdate({ backgroundColor: e.target.value })} className="w-8 h-8 opacity-0 absolute cursor-pointer"/>
+                        <input type="color" value={backgroundColor} onChange={(e) => dispatch({ type: 'UPDATE_TEXT_OVERLAY', payload: { backgroundColor: e.target.value } })} className="w-8 h-8 opacity-0 absolute cursor-pointer"/>
                         <div className="w-8 h-8 rounded border-2 border-purple-700" style={{ backgroundColor: backgroundColor }}></div>
                     </div>
-                    <span className="text-xs text-gray-400">Background Color</span>
+                    <span className="text-xs text-gray-400">BG Color</span>
                 </div>
              </div>
 
@@ -341,13 +338,13 @@ const FreestyleTextControls: React.FC<{
                 <h3 className="text-base font-semibold mb-2">Placement</h3>
                  <div className="flex space-x-2">
                     {(['top-left', 'top-right', 'bottom-left', 'bottom-right'] as OverlayPlacement[]).map(p => (
-                        <button key={p} onClick={() => handleUpdate({ placement: p })} className={`flex-1 h-10 border-2 rounded ${placement === p ? 'border-purple-500 bg-purple-500/20' : 'border-purple-700 hover:border-purple-600'}`}></button>
+                        <button key={p} onClick={() => dispatch({ type: 'UPDATE_TEXT_OVERLAY', payload: { placement: p } })} className={`flex-1 h-10 border-2 rounded ${placement === p ? 'border-purple-500 bg-purple-500/20' : 'border-purple-700 hover:border-purple-600'}`}></button>
                     ))}
                 </div>
             </div>
             
             <button 
-                onClick={() => handleUpdate({ show: !show })}
+                onClick={() => dispatch({ type: 'UPDATE_TEXT_OVERLAY', payload: { show: !show } })}
                 className={`px-6 py-2 text-sm rounded w-full font-semibold ${show ? 'bg-red-600/80 hover:bg-red-600' : 'bg-purple-600/80 hover:bg-purple-600'}`}
             >
                 {show ? 'Hide Text' : 'Show Text'}
@@ -358,8 +355,8 @@ const FreestyleTextControls: React.FC<{
 
 const TextControls: React.FC<{
     settings: OverlaySettings;
-    updateSetting: <K extends keyof OverlaySettings>(key: K, value: Partial<OverlaySettings[K]>) => void;
-}> = ({ settings, updateSetting }) => {
+    dispatch: React.Dispatch<OverlayAction>;
+}> = React.memo(({ settings, dispatch }) => {
     const [textTab, setTextTab] = useState('Lists');
     
     return (
@@ -379,31 +376,28 @@ const TextControls: React.FC<{
                 </button>
             </div>
              {textTab === 'Lists' ? 
-                <BulletListControls settings={settings} updateSetting={updateSetting} /> : 
-                <FreestyleTextControls settings={settings} updateSetting={updateSetting} />
+                <BulletListControls settings={settings} dispatch={dispatch} /> : 
+                <FreestyleTextControls settings={settings} dispatch={dispatch} />
             }
         </div>
     )
-};
+});
 
 const BulletListControls: React.FC<{
     settings: OverlaySettings;
-    updateSetting: <K extends keyof OverlaySettings>(key: K, value: Partial<OverlaySettings[K]>) => void;
-}> = ({ settings, updateSetting }) => {
+    dispatch: React.Dispatch<OverlayAction>;
+}> = ({ settings, dispatch }) => {
     const [isCreating, setIsCreating] = useState(false);
     const [editingList, setEditingList] = useState<BulletList | null>(null);
 
     const handleSave = (listData: Omit<BulletList, 'id'>) => {
         const { lists } = settings.bulletLists;
-        if (editingList) { // Update existing
+        if (editingList) {
             const updatedLists = lists.map(l => l.id === editingList.id ? {...editingList, ...listData} : l);
-            updateSetting('bulletLists', { lists: updatedLists });
-        } else { // Create new
-            const newList: BulletList = {
-                id: crypto.randomUUID(),
-                ...listData
-            };
-            updateSetting('bulletLists', { lists: [...lists, newList] });
+            dispatch({ type: 'UPDATE_BULLET_LISTS', payload: { lists: updatedLists } });
+        } else {
+            const newList: BulletList = { id: crypto.randomUUID(), ...listData };
+            dispatch({ type: 'UPDATE_BULLET_LISTS', payload: { lists: [...lists, newList] } });
         }
         setIsCreating(false);
         setEditingList(null);
@@ -411,28 +405,21 @@ const BulletListControls: React.FC<{
 
     const handleDelete = (id: string) => {
         const updatedLists = settings.bulletLists.lists.filter(l => l.id !== id);
-        updateSetting('bulletLists', { lists: updatedLists, activeListId: settings.bulletLists.activeListId === id ? null : settings.bulletLists.activeListId });
+        const newActiveId = settings.bulletLists.activeListId === id ? null : settings.bulletLists.activeListId;
+        dispatch({ type: 'UPDATE_BULLET_LISTS', payload: { lists: updatedLists, activeListId: newActiveId } });
     };
 
     const handleToggleShow = (id: string) => {
         const { activeListId, show } = settings.bulletLists;
-        if (show && activeListId === id) { // If it's active and shown, hide it
-            updateSetting('bulletLists', { show: false });
-        } else { // Otherwise, make it active and show it
-            updateSetting('bulletLists', { activeListId: id, show: true });
+        if (show && activeListId === id) {
+            dispatch({ type: 'UPDATE_BULLET_LISTS', payload: { show: false } });
+        } else {
+            dispatch({ type: 'UPDATE_BULLET_LISTS', payload: { activeListId: id, show: true } });
         }
     };
     
-    const handlePlacementChange = (placement: OverlayPlacement) => {
-        updateSetting('bulletLists', { placement });
-    };
-
     if (isCreating || editingList) {
-        return <BulletListForm 
-                    list={editingList} 
-                    onSave={handleSave}
-                    onCancel={() => { setIsCreating(false); setEditingList(null); }}
-                />
+        return <BulletListForm list={editingList} onSave={handleSave} onCancel={() => { setIsCreating(false); setEditingList(null); }}/>
     }
 
     return (
@@ -440,12 +427,10 @@ const BulletListControls: React.FC<{
             <div>
                 <div className="flex justify-between items-center mb-2">
                     <h3 className="text-base font-semibold">Saved Lists</h3>
-                    <button onClick={() => setIsCreating(true)} className="text-sm text-purple-400 hover:text-purple-300 font-semibold">
-                        + Create
-                    </button>
+                    <button onClick={() => setIsCreating(true)} className="text-sm text-purple-400 hover:text-purple-300 font-semibold">+ Create</button>
                 </div>
                  {settings.bulletLists.lists.length === 0 ? (
-                    <p className="text-xs text-gray-400 bg-purple-900/40 p-3 rounded-lg text-center">No lists created yet.</p>
+                    <p className="text-xs text-gray-400 bg-purple-900/40 p-3 rounded-lg text-center">No lists created.</p>
                 ) : (
                     <div className="space-y-2">
                         {settings.bulletLists.lists.map(list => {
@@ -457,12 +442,7 @@ const BulletListControls: React.FC<{
                                     <div className="flex items-center justify-end space-x-2 mt-3">
                                         <button onClick={() => setEditingList(list)} className="text-xs text-gray-400 hover:text-white">Edit</button>
                                         <button onClick={() => handleDelete(list.id)} className="text-xs text-red-400 hover:text-red-300">Delete</button>
-                                        <button 
-                                            onClick={() => handleToggleShow(list.id)}
-                                            className={`px-4 py-1.5 text-xs rounded font-semibold ${isActive ? 'bg-red-500' : 'bg-purple-600'}`}
-                                        >
-                                            {isActive ? 'Hide' : 'Show'}
-                                        </button>
+                                        <button onClick={() => handleToggleShow(list.id)} className={`px-4 py-1.5 text-xs rounded font-semibold ${isActive ? 'bg-red-500' : 'bg-purple-600'}`}>{isActive ? 'Hide' : 'Show'}</button>
                                     </div>
                                 </div>
                             )
@@ -474,7 +454,7 @@ const BulletListControls: React.FC<{
                 <h3 className="text-base font-semibold mb-2">Placement</h3>
                  <div className="flex space-x-2">
                     {(['top-left', 'top-right', 'bottom-left', 'bottom-right'] as OverlayPlacement[]).map(p => (
-                        <button key={p} onClick={() => handlePlacementChange(p)} className={`flex-1 h-10 border-2 rounded ${settings.bulletLists.placement === p ? 'border-purple-500 bg-purple-500/20' : 'border-purple-700 hover:border-purple-600'}`}></button>
+                        <button key={p} onClick={() => dispatch({ type: 'UPDATE_BULLET_LISTS', payload: { placement: p } })} className={`flex-1 h-10 border-2 rounded ${settings.bulletLists.placement === p ? 'border-purple-500 bg-purple-500/20' : 'border-purple-700 hover:border-purple-600'}`}></button>
                     ))}
                 </div>
             </div>
@@ -506,35 +486,13 @@ const BulletListForm: React.FC<{
             <h3 className="text-base font-semibold">{list ? 'Edit List' : 'Create New List'}</h3>
             <div>
                 <label className="text-xs text-gray-400">Title</label>
-                <input
-                    type="text"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="w-full mt-1 bg-purple-800/60 p-2 rounded-md text-sm"
-                    required
-                />
+                <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full mt-1 bg-purple-800/60 p-2 rounded-md text-sm" required/>
             </div>
             <div>
                 <label className="text-xs text-gray-400">List Items (one per line)</label>
-                 <textarea
-                    value={items}
-                    onChange={(e) => setItems(e.target.value)}
-                    rows={5}
-                    className="w-full mt-1 bg-purple-800/60 p-2 rounded-md text-sm placeholder-gray-400"
-                    placeholder="• First item..."
-                />
+                 <textarea value={items} onChange={(e) => setItems(e.target.value)} rows={5} className="w-full mt-1 bg-purple-800/60 p-2 rounded-md text-sm placeholder-gray-400" placeholder="• First item..."/>
             </div>
-
-            <StyleControls
-                title="List Style"
-                font={font}
-                textSize={textSize}
-                backgroundOpacity={backgroundOpacity}
-                onFontChange={setFont}
-                onTextSizeChange={setTextSize}
-                onOpacityChange={setBackgroundOpacity}
-            />
-            
+            <StyleControls title="List Style" font={font} textSize={textSize} backgroundOpacity={backgroundOpacity} onFontChange={setFont} onTextSizeChange={setTextSize} onOpacityChange={setBackgroundOpacity}/>
             <div className="flex justify-end space-x-2">
                 <button type="button" onClick={onCancel} className="px-4 py-2 text-sm rounded bg-purple-800 hover:bg-purple-700 font-semibold">Cancel</button>
                 <button type="submit" className="px-4 py-2 text-sm rounded bg-purple-600 hover:bg-purple-700 font-semibold">Save List</button>
@@ -543,118 +501,61 @@ const BulletListForm: React.FC<{
     );
 };
 
-
 const WidgetsControls: React.FC<{
     settings: OverlaySettings;
-    updateSetting: <K extends keyof OverlaySettings>(key: K, value: Partial<OverlaySettings[K]>) => void;
+    dispatch: React.Dispatch<OverlayAction>;
     resetCountdown: () => void;
-}> = ({ settings, updateSetting, resetCountdown }) => {
-    
-    const toggleCountdownRunning = () => {
-        updateSetting('countdown', { running: !settings.countdown.running });
-    }
-
+}> = React.memo(({ settings, dispatch, resetCountdown }) => {
     return (
         <div className="p-4 space-y-6">
-            {/* Countdown Timer */}
             <div>
                 <h3 className="text-base font-semibold mb-3">Countdown Timer</h3>
                 <div className="space-y-3">
                     <div>
                         <label className="text-xs text-gray-400">Title</label>
-                        <input
-                            type="text"
-                            value={settings.countdown.title}
-                            onChange={(e) => updateSetting('countdown', { title: e.target.value })}
-                            className="w-full mt-1 bg-purple-800/60 p-2 rounded-md text-sm"
-                        />
+                        <input type="text" value={settings.countdown.title} onChange={(e) => dispatch({ type: 'UPDATE_COUNTDOWN', payload: { title: e.target.value } })} className="w-full mt-1 bg-purple-800/60 p-2 rounded-md text-sm"/>
                     </div>
                     <div>
                         <label className="text-xs text-gray-400">Duration (minutes)</label>
-                        <input
-                            type="number"
-                            value={settings.countdown.duration}
-                            min="1"
-                            max="60"
-                            onChange={(e) => {
-                                updateSetting('countdown', { duration: parseInt(e.target.value, 10) });
-                                // Reset time when duration changes
-                                resetCountdown();
-                            }}
-                            className="w-full mt-1 bg-purple-800/60 p-2 rounded-md text-sm"
-                        />
+                        <input type="number" value={settings.countdown.duration} min="1" max="60" onChange={(e) => { dispatch({ type: 'UPDATE_COUNTDOWN', payload: { duration: parseInt(e.target.value, 10) } }); resetCountdown(); }} className="w-full mt-1 bg-purple-800/60 p-2 rounded-md text-sm"/>
                     </div>
                     <div className="flex items-center space-x-2">
-                        <button onClick={toggleCountdownRunning} className={`px-4 py-1.5 text-xs rounded font-semibold ${settings.countdown.running ? 'bg-yellow-500/80' : 'bg-green-500/80'}`}>
-                           {settings.countdown.running ? 'Pause' : 'Start'}
-                        </button>
+                        <button onClick={() => dispatch({ type: 'UPDATE_COUNTDOWN', payload: { running: !settings.countdown.running } })} className={`px-4 py-1.5 text-xs rounded font-semibold ${settings.countdown.running ? 'bg-yellow-500/80' : 'bg-green-500/80'}`}>{settings.countdown.running ? 'Pause' : 'Start'}</button>
                          <button onClick={resetCountdown} className="px-4 py-1.5 text-xs rounded bg-purple-800 font-semibold">Reset</button>
                     </div>
                 </div>
-                <button 
-                    onClick={() => updateSetting('countdown', { show: !settings.countdown.show })}
-                    className={`mt-3 px-6 py-2 text-sm rounded w-full font-semibold ${settings.countdown.show ? 'bg-red-600/80 hover:bg-red-600' : 'bg-purple-600/80 hover:bg-purple-600'}`}
-                >
-                    {settings.countdown.show ? 'Hide Timer' : 'Show Timer'}
-                </button>
+                <button onClick={() => dispatch({ type: 'UPDATE_COUNTDOWN', payload: { show: !settings.countdown.show } })} className={`mt-3 px-6 py-2 text-sm rounded w-full font-semibold ${settings.countdown.show ? 'bg-red-600/80 hover:bg-red-600' : 'bg-purple-600/80 hover:bg-purple-600'}`}>{settings.countdown.show ? 'Hide Timer' : 'Show Timer'}</button>
             </div>
-
-            {/* Ticker */}
             <div>
                 <h3 className="text-base font-semibold mb-3">Ticker</h3>
-                <textarea
-                    value={settings.ticker.text}
-                    onChange={(e) => updateSetting('ticker', { text: e.target.value })}
-                    rows={3}
-                    className="w-full bg-purple-800/60 p-2 rounded-md text-sm placeholder-gray-400"
-                    placeholder="Enter scrolling text..."
-                />
-                 <button 
-                    onClick={() => updateSetting('ticker', { show: !settings.ticker.show })}
-                    className={`mt-3 px-6 py-2 text-sm rounded w-full font-semibold ${settings.ticker.show ? 'bg-red-600/80 hover:bg-red-600' : 'bg-purple-600/80 hover:bg-purple-600'}`}
-                >
-                    {settings.ticker.show ? 'Hide Ticker' : 'Show Ticker'}
-                </button>
+                <textarea value={settings.ticker.text} onChange={(e) => dispatch({ type: 'UPDATE_TICKER', payload: { text: e.target.value } })} rows={3} className="w-full bg-purple-800/60 p-2 rounded-md text-sm placeholder-gray-400" placeholder="Enter scrolling text..."/>
+                 <button onClick={() => dispatch({ type: 'UPDATE_TICKER', payload: { show: !settings.ticker.show } })} className={`mt-3 px-6 py-2 text-sm rounded w-full font-semibold ${settings.ticker.show ? 'bg-red-600/80 hover:bg-red-600' : 'bg-purple-600/80 hover:bg-purple-600'}`}>{settings.ticker.show ? 'Hide Ticker' : 'Show Ticker'}</button>
             </div>
         </div>
     )
-}
+});
 
 const PresetsControls: React.FC<{
     presets: Preset[];
     savePreset: (name: string) => void;
     applyPreset: (id: string) => void;
     deletePreset: (id: string) => void;
-}> = ({ presets, savePreset, applyPreset, deletePreset }) => {
+}> = React.memo(({ presets, savePreset, applyPreset, deletePreset }) => {
     const [presetName, setPresetName] = useState('');
-
-    const handleSave = () => {
-        if (presetName.trim()) {
-            savePreset(presetName.trim());
-            setPresetName('');
-        }
-    };
+    const handleSave = () => { if (presetName.trim()) { savePreset(presetName.trim()); setPresetName(''); } };
 
     return (
         <div className="p-4 space-y-6">
             <div>
                 <h3 className="text-sm font-semibold mb-2">Save Current Setup</h3>
                 <div className="flex space-x-2">
-                    <input 
-                        type="text"
-                        value={presetName}
-                        onChange={(e) => setPresetName(e.target.value)}
-                        placeholder="New preset name..."
-                        className="flex-1 bg-purple-800/60 p-2 rounded-md text-sm placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                    />
+                    <input type="text" value={presetName} onChange={(e) => setPresetName(e.target.value)} placeholder="New preset name..." className="flex-1 bg-purple-800/60 p-2 rounded-md text-sm placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:outline-none"/>
                     <button onClick={handleSave} className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-md text-sm font-semibold">Save</button>
                 </div>
             </div>
             <div>
                 <h3 className="text-sm font-semibold mb-2">Your Presets</h3>
-                {presets.length === 0 ? (
-                     <p className="text-xs text-gray-400 bg-purple-900/40 p-3 rounded-lg">You have no saved presets.</p>
-                ) : (
+                {presets.length === 0 ? (<p className="text-xs text-gray-400 bg-purple-900/40 p-3 rounded-lg">No saved presets.</p>) : (
                     <div className="space-y-2">
                         {presets.map(preset => (
                             <div key={preset.id} className="group flex items-center justify-between bg-purple-900/40 p-2 rounded-lg">
@@ -670,45 +571,22 @@ const PresetsControls: React.FC<{
             </div>
         </div>
     );
-};
+});
 
-const PROCEDURAL_OVERLAYS = [
-    { name: 'Geometric', style: 'geometric' },
-    { name: 'Wave', style: 'wave' },
-    { name: 'Vignette', style: 'vignette' },
-];
-
-const BrandControls: React.FC<{settings: OverlaySettings; updateSetting: <K extends keyof OverlaySettings>(key: K, value: Partial<OverlaySettings[K]>) => void}> = ({ settings, updateSetting }) => {
-    
-    const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+const BrandControls: React.FC<{settings: OverlaySettings; dispatch: React.Dispatch<OverlayAction>}> = React.memo(({ settings, dispatch }) => {
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'overlay') => {
         const file = e.target.files?.[0];
         if (file) {
             const url = URL.createObjectURL(file);
-            updateSetting('logo', { url });
-        }
-    };
-
-    const handleOverlayFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            const url = URL.createObjectURL(file);
-            const type = file.type.startsWith('video') ? 'video' : 'image';
-            updateSetting('overlay', { url, type, show: true });
+            if (type === 'logo') {
+                dispatch({ type: 'UPDATE_LOGO', payload: { url } });
+            } else {
+                const fileType = file.type.startsWith('video') ? 'video' : 'image';
+                dispatch({ type: 'UPDATE_OVERLAY', payload: { url, type: fileType, show: true } });
+            }
         }
     };
     
-    const applyProceduralOverlay = (style: string) => {
-        updateSetting('overlay', { style, show: true, type: 'procedural', url: null });
-    }
-
-    const clearOverlay = () => {
-        updateSetting('overlay', { style: 'none', show: false, url: null });
-    }
-
-    const handlePlacementChange = (placement: OverlayPlacement) => {
-        updateSetting('logo', { placement });
-    };
-
     return (
         <div className="p-4 space-y-6">
             <div>
@@ -716,17 +594,11 @@ const BrandControls: React.FC<{settings: OverlaySettings; updateSetting: <K exte
                 <div className="bg-purple-900/40 p-3 rounded-lg">
                     <div className="flex items-center justify-between">
                         <div className="w-24 h-10 bg-black/50 rounded flex items-center justify-center">
-                            {settings.logo.url ? (
-                                <img src={settings.logo.url} alt="Logo Preview" className="max-w-full max-h-full object-contain"/>
-                            ) : (
-                                <span className="text-xs text-gray-500">No Logo</span>
-                            )}
+                            {settings.logo.url ? <img src={settings.logo.url} alt="Logo" className="max-w-full max-h-full"/> : <span className="text-xs text-gray-500">No Logo</span>}
                         </div>
                         <div className="flex items-center space-x-2">
-                             {settings.logo.url && (
-                                <button onClick={() => updateSetting('logo', { url: null })} className="text-xs text-red-400 hover:text-red-300">Remove</button>
-                            )}
-                            <input type="file" id="logo-upload" accept="image/*" className="hidden" onChange={handleLogoFileChange} />
+                             {settings.logo.url && <button onClick={() => dispatch({ type: 'UPDATE_LOGO', payload: { url: null } })} className="text-xs text-red-400 hover:text-red-300">Remove</button>}
+                            <input type="file" id="logo-upload" accept="image/*" className="hidden" onChange={(e) => handleFileChange(e, 'logo')} />
                             <label htmlFor="logo-upload" className="px-3 py-1 text-xs rounded bg-purple-800 text-gray-200 hover:bg-purple-700 cursor-pointer">Upload</label>
                         </div>
                     </div>
@@ -734,18 +606,13 @@ const BrandControls: React.FC<{settings: OverlaySettings; updateSetting: <K exte
                         <label className="text-xs text-gray-400">Placement</label>
                         <div className="flex space-x-2">
                             {(['top-left', 'top-right', 'bottom-left', 'bottom-right'] as OverlayPlacement[]).map(p => (
-                                <button key={p} onClick={() => handlePlacementChange(p)} className={`w-8 h-6 border-2 rounded ${settings.logo.placement === p ? 'border-purple-500 bg-purple-500/20' : 'border-purple-700 hover:border-purple-600'}`}></button>
+                                <button key={p} onClick={() => dispatch({ type: 'UPDATE_LOGO', payload: { placement: p } })} className={`w-8 h-6 border-2 rounded ${settings.logo.placement === p ? 'border-purple-500 bg-purple-500/20' : 'border-purple-700 hover:border-purple-600'}`}></button>
                             ))}
                         </div>
                     </div>
                      <div className="mt-4 flex items-center justify-between">
                         <label className="text-xs text-gray-400">Show on stream</label>
-                        <button 
-                            onClick={() => updateSetting('logo', { show: !settings.logo.show })}
-                            className={`px-3 py-1 text-xs rounded ${settings.logo.show ? 'bg-purple-600 text-white' : 'bg-purple-800 text-gray-300'}`}
-                        >
-                            {settings.logo.show ? 'Visible' : 'Hidden'}
-                        </button>
+                        <button onClick={() => dispatch({ type: 'UPDATE_LOGO', payload: { show: !settings.logo.show } })} className={`px-3 py-1 text-xs rounded ${settings.logo.show ? 'bg-purple-600 text-white' : 'bg-purple-800 text-gray-300'}`}>{settings.logo.show ? 'Visible' : 'Hidden'}</button>
                     </div>
                 </div>
             </div>
@@ -754,90 +621,47 @@ const BrandControls: React.FC<{settings: OverlaySettings; updateSetting: <K exte
                  <div className="bg-purple-900/40 p-3 rounded-lg space-y-4">
                     <div>
                         <h4 className="text-xs font-semibold text-gray-400 mb-2">Upload Image/Video</h4>
-                        <input type="file" id="overlay-upload" accept="image/*,video/*" className="hidden" onChange={handleOverlayFileChange} />
-                        <label htmlFor="overlay-upload" className="w-full text-center block px-3 py-2 text-sm rounded bg-purple-800 text-gray-200 hover:bg-purple-700 cursor-pointer">
-                            Upload Overlay
-                        </label>
+                        <input type="file" id="overlay-upload" accept="image/*,video/*" className="hidden" onChange={(e) => handleFileChange(e, 'overlay')} />
+                        <label htmlFor="overlay-upload" className="w-full text-center block px-3 py-2 text-sm rounded bg-purple-800 text-gray-200 hover:bg-purple-700 cursor-pointer">Upload Overlay</label>
                         {settings.overlay.url && (
                             <div className="mt-3 space-y-2 text-sm">
-                                <label className="flex justify-between items-center text-gray-300">
-                                    <span>Size</span>
-                                    <span>{Math.round(settings.overlay.size * 100)}%</span>
-                                </label>
-                                <input type="range" min="0.1" max="1.5" step="0.05" value={settings.overlay.size} onChange={(e) => updateSetting('overlay', { size: parseFloat(e.target.value) })} className="w-full h-2 bg-purple-800/60 rounded-lg appearance-none cursor-pointer accent-purple-500" />
-                                
-                                <label className="flex justify-between items-center text-gray-300">
-                                    <span>Opacity</span>
-                                    <span>{Math.round(settings.overlay.opacity * 100)}%</span>
-                                </label>
-                                <input type="range" min="0" max="1" step="0.05" value={settings.overlay.opacity} onChange={(e) => updateSetting('overlay', { opacity: parseFloat(e.target.value) })} className="w-full h-2 bg-purple-800/60 rounded-lg appearance-none cursor-pointer accent-purple-500" />
+                                <label className="flex justify-between items-center text-gray-300"><span>Size</span><span>{Math.round(settings.overlay.size * 100)}%</span></label>
+                                <input type="range" min="0.1" max="1.5" step="0.05" value={settings.overlay.size} onChange={(e) => dispatch({ type: 'UPDATE_OVERLAY', payload: { size: parseFloat(e.target.value) } })} className="w-full h-2 bg-purple-800/60 rounded-lg appearance-none cursor-pointer accent-purple-500" />
+                                <label className="flex justify-between items-center text-gray-300"><span>Opacity</span><span>{Math.round(settings.overlay.opacity * 100)}%</span></label>
+                                <input type="range" min="0" max="1" step="0.05" value={settings.overlay.opacity} onChange={(e) => dispatch({ type: 'UPDATE_OVERLAY', payload: { opacity: parseFloat(e.target.value) } })} className="w-full h-2 bg-purple-800/60 rounded-lg appearance-none cursor-pointer accent-purple-500" />
                             </div>
                         )}
                     </div>
-                    <div>
-                        <h4 className="text-xs font-semibold text-gray-400 mb-2">Procedural Overlays</h4>
-                        <div className="grid grid-cols-3 gap-2">
-                            {PROCEDURAL_OVERLAYS.map(overlay => (
-                                <button 
-                                    key={overlay.name} 
-                                    onClick={() => applyProceduralOverlay(overlay.style)} 
-                                    className={`aspect-video bg-black/50 rounded border-2 text-xs font-semibold flex items-center justify-center text-center p-1 ${settings.overlay.show && settings.overlay.style === overlay.style ? 'border-purple-500' : 'border-transparent hover:border-purple-700'}`}
-                                >
-                                {overlay.name}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                    <button onClick={clearOverlay} className="w-full mt-3 px-3 py-1.5 text-xs rounded bg-purple-800 text-gray-200 hover:bg-purple-700">Clear Overlay</button>
+                    <button onClick={() => dispatch({ type: 'UPDATE_OVERLAY', payload: { style: 'none', show: false, url: null } })} className="w-full mt-3 px-3 py-1.5 text-xs rounded bg-purple-800 text-gray-200 hover:bg-purple-700">Clear Overlay</button>
                  </div>
             </div>
-
         </div>
     )
-}
+});
 
-const BannerControls: React.FC<{settings: OverlaySettings; updateSetting: <K extends keyof OverlaySettings>(key: K, value: Partial<OverlaySettings[K]>) => void}> = ({ settings, updateSetting }) => {
+const BannerControls: React.FC<{settings: OverlaySettings; dispatch: React.Dispatch<OverlayAction>}> = React.memo(({ settings, dispatch }) => {
     return (
         <div className="p-4 space-y-6">
              <div>
                 <h3 className="text-sm font-semibold mb-2">Banner</h3>
-                <textarea
-                    value={settings.banner.text}
-                    onChange={(e) => updateSetting('banner', { text: e.target.value })}
-                    rows={3}
-                    className="w-full bg-purple-800/60 p-2 rounded-md text-sm placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                    placeholder="Type your banner text here..."
-                />
+                <textarea value={settings.banner.text} onChange={(e) => dispatch({ type: 'UPDATE_BANNER', payload: { text: e.target.value } })} rows={3} className="w-full bg-purple-800/60 p-2 rounded-md text-sm" placeholder="Banner text..."/>
                  <div className="mt-2">
                     <label className="text-xs text-gray-400">Theme</label>
                     <div className="flex space-x-2 mt-1">
-                        <button onClick={() => updateSetting('banner', { theme: 'default' })} className={`px-3 py-1 text-xs rounded ${settings.banner.theme === 'default' ? 'bg-purple-600 text-white' : 'bg-purple-800'}`}>Default</button>
-                        <button onClick={() => updateSetting('banner', { theme: 'primary' })} className={`px-3 py-1 text-xs rounded ${settings.banner.theme === 'primary' ? 'bg-purple-600 text-white' : 'bg-purple-800'}`}>Primary</button>
+                        <button onClick={() => dispatch({ type: 'UPDATE_BANNER', payload: { theme: 'default' } })} className={`px-3 py-1 text-xs rounded ${settings.banner.theme === 'default' ? 'bg-purple-600' : 'bg-purple-800'}`}>Default</button>
+                        <button onClick={() => dispatch({ type: 'UPDATE_BANNER', payload: { theme: 'primary' } })} className={`px-3 py-1 text-xs rounded ${settings.banner.theme === 'primary' ? 'bg-purple-600' : 'bg-purple-800'}`}>Primary</button>
                     </div>
                 </div>
-                <StyleControls
-                    title="Banner Style"
-                    font={settings.banner.font}
-                    textSize={settings.banner.textSize}
-                    backgroundOpacity={settings.banner.backgroundOpacity}
-                    onFontChange={(font) => updateSetting('banner', { font })}
-                    onTextSizeChange={(textSize) => updateSetting('banner', { textSize })}
-                    onOpacityChange={(backgroundOpacity) => updateSetting('banner', { backgroundOpacity })}
-                />
+                <StyleControls title="Banner Style" font={settings.banner.font} textSize={settings.banner.textSize} backgroundOpacity={settings.banner.backgroundOpacity} onFontChange={(f) => dispatch({ type: 'UPDATE_BANNER', payload: { font: f } })} onTextSizeChange={(s) => dispatch({ type: 'UPDATE_BANNER', payload: { textSize: s } })} onOpacityChange={(o) => dispatch({ type: 'UPDATE_BANNER', payload: { backgroundOpacity: o } })}/>
                 <div className="flex items-center justify-between mt-4">
-                    <button 
-                        onClick={() => updateSetting('banner', { show: !settings.banner.show })}
-                        className={`px-6 py-2 text-sm rounded w-full font-semibold ${settings.banner.show ? 'bg-red-600/80 hover:bg-red-600' : 'bg-purple-600/80 hover:bg-purple-600'}`}
-                    >
-                        {settings.banner.show ? 'Hide Banner' : 'Show Banner'}
-                    </button>
+                    <button onClick={() => dispatch({ type: 'UPDATE_BANNER', payload: { show: !settings.banner.show } })} className={`px-6 py-2 text-sm rounded w-full font-semibold ${settings.banner.show ? 'bg-red-600/80' : 'bg-purple-600/80'}`}>{settings.banner.show ? 'Hide Banner' : 'Show Banner'}</button>
                 </div>
              </div>
         </div>
     )
-}
+});
 
-const LowerThirdControls: React.FC<{settings: OverlaySettings; updateSetting: <K extends keyof OverlaySettings>(key: K, value: Partial<OverlaySettings[K]>) => void}> = ({ settings, updateSetting }) => {
+const LowerThirdControls: React.FC<{settings: OverlaySettings; dispatch: React.Dispatch<OverlayAction>}> = React.memo(({ settings, dispatch }) => {
     return (
         <div className="p-4 space-y-6">
              <div>
@@ -845,58 +669,33 @@ const LowerThirdControls: React.FC<{settings: OverlaySettings; updateSetting: <K
                 <div className="space-y-3">
                     <div>
                         <label className="text-xs text-gray-400">Title</label>
-                        <input
-                            type="text"
-                            value={settings.lowerThird.title}
-                            onChange={(e) => updateSetting('lowerThird', { title: e.target.value })}
-                            className="w-full mt-1 bg-purple-800/60 p-2 rounded-md text-sm placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                            placeholder="e.g., John Doe"
-                        />
+                        <input type="text" value={settings.lowerThird.title} onChange={(e) => dispatch({ type: 'UPDATE_LOWER_THIRD', payload: { title: e.target.value } })} className="w-full mt-1 bg-purple-800/60 p-2" placeholder="e.g., John Doe"/>
                     </div>
                      <div>
                         <label className="text-xs text-gray-400">Subtitle</label>
-                        <input
-                            type="text"
-                            value={settings.lowerThird.subtitle}
-                            onChange={(e) => updateSetting('lowerThird', { subtitle: e.target.value })}
-                            className="w-full mt-1 bg-purple-800/60 p-2 rounded-md text-sm placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                            placeholder="e.g., Host"
-                        />
+                        <input type="text" value={settings.lowerThird.subtitle} onChange={(e) => dispatch({ type: 'UPDATE_LOWER_THIRD', payload: { subtitle: e.target.value } })} className="w-full mt-1 bg-purple-800/60 p-2" placeholder="e.g., Host"/>
                     </div>
                 </div>
                  <div className="mt-3">
                     <label className="text-xs text-gray-400">Theme</label>
                     <div className="flex space-x-2 mt-1">
-                        <button onClick={() => updateSetting('lowerThird', { theme: 'default' })} className={`px-3 py-1 text-xs rounded ${settings.lowerThird.theme === 'default' ? 'bg-purple-600 text-white' : 'bg-purple-800'}`}>Default</button>
-                        <button onClick={() => updateSetting('lowerThird', { theme: 'primary' })} className={`px-3 py-1 text-xs rounded ${settings.lowerThird.theme === 'primary' ? 'bg-purple-600 text-white' : 'bg-purple-800'}`}>Primary</button>
+                        <button onClick={() => dispatch({ type: 'UPDATE_LOWER_THIRD', payload: { theme: 'default' } })} className={`px-3 py-1 text-xs rounded ${settings.lowerThird.theme === 'default' ? 'bg-purple-600' : 'bg-purple-800'}`}>Default</button>
+                        <button onClick={() => dispatch({ type: 'UPDATE_LOWER_THIRD', payload: { theme: 'primary' } })} className={`px-3 py-1 text-xs rounded ${settings.lowerThird.theme === 'primary' ? 'bg-purple-600' : 'bg-purple-800'}`}>Primary</button>
                     </div>
                 </div>
-                 <StyleControls
-                    title="Lower Third Style"
-                    font={settings.lowerThird.font}
-                    textSize={settings.lowerThird.textSize}
-                    backgroundOpacity={settings.lowerThird.backgroundOpacity}
-                    onFontChange={(font) => updateSetting('lowerThird', { font })}
-                    onTextSizeChange={(textSize) => updateSetting('lowerThird', { textSize })}
-                    onOpacityChange={(backgroundOpacity) => updateSetting('lowerThird', { backgroundOpacity })}
-                />
+                 <StyleControls title="Lower Third Style" font={settings.lowerThird.font} textSize={settings.lowerThird.textSize} backgroundOpacity={settings.lowerThird.backgroundOpacity} onFontChange={(f) => dispatch({ type: 'UPDATE_LOWER_THIRD', payload: { font: f } })} onTextSizeChange={(s) => dispatch({ type: 'UPDATE_LOWER_THIRD', payload: { textSize: s } })} onOpacityChange={(o) => dispatch({ type: 'UPDATE_LOWER_THIRD', payload: { backgroundOpacity: o } })}/>
                 <div className="flex items-center justify-between mt-4">
-                    <button 
-                        onClick={() => updateSetting('lowerThird', { show: !settings.lowerThird.show })}
-                        className={`px-6 py-2 text-sm rounded w-full font-semibold ${settings.lowerThird.show ? 'bg-red-600/80 hover:bg-red-600' : 'bg-purple-600/80 hover:bg-purple-600'}`}
-                    >
-                        {settings.lowerThird.show ? 'Hide Lower Third' : 'Show Lower Third'}
-                    </button>
+                    <button onClick={() => dispatch({ type: 'UPDATE_LOWER_THIRD', payload: { show: !settings.lowerThird.show } })} className={`px-6 py-2 text-sm rounded w-full font-semibold ${settings.lowerThird.show ? 'bg-red-600/80' : 'bg-purple-600/80'}`}>{settings.lowerThird.show ? 'Hide Lower Third' : 'Show Lower Third'}</button>
                 </div>
              </div>
         </div>
     )
-}
+});
 
 const DestinationsControls: React.FC<{
     destinations: Destination[];
     removeDestination: (id: string) => void;
-}> = ({ destinations, removeDestination }) => {
+}> = React.memo(({ destinations, removeDestination }) => {
     return (
         <div className="p-4 space-y-4">
             <div>
@@ -919,6 +718,6 @@ const DestinationsControls: React.FC<{
             </div>
         </div>
     )
-}
+});
 
 export default StudioControls;
